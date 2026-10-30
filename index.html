@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Groq Chat</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚡</text></svg>">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
+<style>
+:root{--bg:#fff;--side:#f7f7f8;--text:#1f2328;--muted:#6b7280;--border:#e5e7eb;--user:#f0f1f3;--accent:#f55036;--code:#0d1117}
+@media(prefers-color-scheme:dark){:root{--bg:#212121;--side:#171717;--text:#ececec;--muted:#9ca3af;--border:#333;--user:#2f2f2f}}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);display:flex;overflow:hidden}
+button,select,textarea{font:inherit;color:inherit}
+#side{width:260px;background:var(--side);display:flex;flex-direction:column;padding:12px;gap:8px;transition:transform .2s;z-index:5}
+#side button.new{border:1px solid var(--border);background:none;border-radius:10px;padding:10px;cursor:pointer;text-align:left}
+#side button.new:hover,.chat:hover{background:var(--user)}
+#list{flex:1;overflow:auto;display:flex;flex-direction:column;gap:2px}
+.chat{display:flex;align-items:center;border-radius:8px;padding:8px 10px;cursor:pointer;font-size:14px}
+.chat.active{background:var(--user)}
+.chat span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chat i{font-style:normal;color:var(--muted);opacity:0;padding:0 4px}
+.chat:hover i{opacity:1}
+main{flex:1;display:flex;flex-direction:column;min-width:0;padding-top:env(safe-area-inset-top)}
+header{display:flex;align-items:center;gap:10px;padding:10px 14px}
+#menu{display:none;background:none;border:0;font-size:22px;cursor:pointer}
+select{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:6px 8px;max-width:60vw}
+#msgs{flex:1;overflow:auto;padding:10px 0}
+.wrap{max-width:760px;margin:0 auto;padding:0 16px}
+.msg{padding:12px 0;display:flex;gap:12px}
+.msg.user{justify-content:flex-end}
+.msg.user .body{background:var(--user);border-radius:18px;padding:10px 16px;max-width:85%;white-space:pre-wrap}
+.msg.assistant .body{flex:1;min-width:0;line-height:1.65}
+.av{width:28px;height:28px;border-radius:50%;background:var(--accent);color:#fff;display:grid;place-items:center;font-size:14px;flex:none}
+.body p{margin:.5em 0}.body pre{position:relative;background:var(--code);color:#e6edf3;border-radius:10px;padding:14px;overflow:auto;font-size:13px}
+.body code{font-family:ui-monospace,Menlo,Consolas,monospace}
+.body :not(pre)>code{background:var(--user);padding:2px 6px;border-radius:5px;font-size:.9em}
+.body table{border-collapse:collapse;display:block;overflow:auto}.body td,.body th{border:1px solid var(--border);padding:6px 10px}
+.copy{position:absolute;top:6px;right:6px;background:#30363d;color:#e6edf3;border:0;border-radius:6px;padding:3px 8px;font-size:12px;cursor:pointer}
+.err{color:#dc2626}
+.cursor::after{content:"▍";animation:b 1s infinite}@keyframes b{50%{opacity:0}}
+#hero{text-align:center;margin-top:18vh}#hero h1{font-size:28px;margin:0 0 6px}#hero p{color:var(--muted)}
+.chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:18px}
+.chips button{border:1px solid var(--border);background:none;border-radius:999px;padding:8px 14px;cursor:pointer;font-size:14px}
+.chips button:hover{background:var(--user)}
+form{padding:8px 16px calc(14px + env(safe-area-inset-bottom))}
+.box{max-width:760px;margin:0 auto;display:flex;gap:8px;align-items:flex-end;border:1px solid var(--border);background:var(--user);border-radius:24px;padding:8px 8px 8px 16px}
+textarea{flex:1;border:0;outline:0;background:none;resize:none;max-height:200px;padding:6px 0;line-height:1.5}
+#send{width:36px;height:36px;border-radius:50%;border:0;background:var(--text);color:var(--bg);cursor:pointer;font-size:16px;flex:none}
+#send:disabled{opacity:.3;cursor:default}
+.note{text-align:center;color:var(--muted);font-size:12px;margin-top:8px}
+@media(max-width:760px){#side{position:fixed;inset:0 auto 0 0;transform:translateX(-100%)}#side.open{transform:none;box-shadow:0 0 40px #0006}#menu{display:block}}
+</style>
+</head>
+<body>
+<aside id="side">
+  <button class="new" id="new">＋ New chat</button>
+  <div id="list"></div>
+</aside>
+<main>
+  <header>
+    <button id="menu" aria-label="Menu">☰</button>
+    <select id="model" aria-label="Model"><option>Loading…</option></select>
+  </header>
+  <div id="msgs"><div class="wrap" id="thread"></div></div>
+  <form id="form">
+    <div class="box">
+      <textarea id="input" rows="1" placeholder="Message Groq Chat…" autofocus></textarea>
+      <button id="send" type="submit" aria-label="Send">↑</button>
+    </div>
+    <div class="note">AI can make mistakes. Check important info.</div>
+  </form>
+</main>
+<script>
+const $ = (s) => document.querySelector(s);
+const store = {
+  get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+};
+let chats = store.get("chats", []);
+let current = store.get("current", null);
+let busy = false, ctrl = null;
+
+const active = () => chats.find((c) => c.id === current);
+const save = () => { store.set("chats", chats); store.set("current", current); };
+const newChat = () => { const c = { id: Date.now().toString(36), title: "New chat", messages: [] }; chats.unshift(c); current = c.id; save(); render(); };
+
+function renderList() {
+  $("#list").innerHTML = "";
+  chats.forEach((c) => {
+    const d = document.createElement("div");
+    d.className = "chat" + (c.id === current ? " active" : "");
+    d.innerHTML = "<span></span><i title='Delete'>✕</i>";
+    d.firstChild.textContent = c.title;
+    d.onclick = (e) => {
+      if (e.target.tagName === "I") { chats = chats.filter((x) => x.id !== c.id); if (current === c.id) current = chats[0]?.id ?? null; save(); render(); return; }
+      current = c.id; save(); render(); $("#side").classList.remove("open");
+    };
+    $("#list").append(d);
+  });
+}
+
+function md(text) {
+  const html = DOMPurify.sanitize(marked.parse(text, { breaks: true }));
+  const t = document.createElement("div"); t.innerHTML = html;
+  t.querySelectorAll("pre").forEach((p) => {
+    const b = document.createElement("button"); b.className = "copy"; b.textContent = "Copy"; b.type = "button";
+    b.onclick = () => { navigator.clipboard.writeText(p.innerText.replace(/Copy$/, "")); b.textContent = "Copied!"; setTimeout(() => (b.textContent = "Copy"), 1200); };
+    p.append(b);
+  });
+  return t.innerHTML;
+}
+
+function bubble(m) {
+  const d = document.createElement("div");
+  d.className = "msg " + m.role;
+  if (m.role === "assistant") d.innerHTML = '<div class="av">⚡</div><div class="body"></div>';
+  else d.innerHTML = '<div class="body"></div>';
+  const body = d.querySelector(".body");
+  if (m.role === "user") body.textContent = m.content; else body.innerHTML = md(m.content);
+  $("#thread").append(d);
+  return body;
+}
+
+function render() {
+  renderList();
+  const t = $("#thread"); t.innerHTML = "";
+  const c = active();
+  if (!c || !c.messages.length) {
+    t.innerHTML = `<div id="hero"><h1>⚡ How can I help you today?</h1><p>Powered by Groq — blazing-fast open models.</p>
+      <div class="chips">${["Explain quantum computing simply", "Write a Python function to reverse a string", "Give me a 3-day workout plan", "Help me write a professional email"].map((s) => `<button type="button">${s}</button>`).join("")}</div></div>`;
+    t.querySelectorAll(".chips button").forEach((b) => (b.onclick = () => { $("#input").value = b.textContent; $("#form").requestSubmit(); }));
+  } else c.messages.forEach(bubble);
+  scroll();
+}
+const scroll = () => { const m = $("#msgs"); m.scrollTop = m.scrollHeight; };
+
+async function send(text) {
+  if (!active()) newChat();
+  const c = active();
+  c.messages.push({ role: "user", content: text });
+  if (c.messages.length === 1) c.title = text.slice(0, 40);
+  save(); render();
+  const reply = { role: "assistant", content: "" };
+  c.messages.push(reply);
+  const body = bubble(reply); body.classList.add("cursor");
+  busy = true; ctrl = new AbortController(); setBtn();
+  try {
+    const r = await fetch("/api/chat", {
+      method: "POST", signal: ctrl.signal,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model: $("#model").value, messages: c.messages.slice(0, -1).map(({ role, content }) => ({ role, content })) }),
+    });
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || "Request failed (" + r.status + ")");
+    const reader = r.body.getReader(), dec = new TextDecoder();
+    let buf = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const lines = buf.split("\n"); buf = lines.pop();
+      for (const l of lines) {
+        if (!l.startsWith("data:")) continue;
+        const data = l.slice(5).trim();
+        if (data === "[DONE]") continue;
+        try { reply.content += JSON.parse(data).choices?.[0]?.delta?.content || ""; } catch {}
+      }
+      body.innerHTML = md(reply.content); scroll();
+    }
+  } catch (e) {
+    if (e.name !== "AbortError") { body.innerHTML = '<span class="err"></span>'; body.firstChild.textContent = "⚠ " + e.message; if (!reply.content) c.messages.pop(); }
+  }
+  if (reply.content) body.innerHTML = md(reply.content);
+  else if (c.messages.at(-1) === reply) c.messages.pop();
+  body.classList.remove("cursor");
+  busy = false; ctrl = null; setBtn(); save(); renderList();
+}
+
+function setBtn() { const b = $("#send"); b.textContent = busy ? "■" : "↑"; b.disabled = !busy && !$("#input").value.trim(); }
+
+$("#form").onsubmit = (e) => {
+  e.preventDefault();
+  if (busy) return ctrl?.abort();
+  const v = $("#input").value.trim(); if (!v) return;
+  $("#input").value = ""; $("#input").style.height = "auto"; setBtn(); send(v);
+};
+$("#input").oninput = (e) => { e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; setBtn(); };
+$("#input").onkeydown = (e) => { if (e.key === "Enter" && !e.shiftKey && !/Mobi|Android/i.test(navigator.userAgent)) { e.preventDefault(); $("#form").requestSubmit(); } };
+$("#new").onclick = () => { newChat(); $("#side").classList.remove("open"); };
+$("#menu").onclick = () => $("#side").classList.toggle("open");
+$("#model").onchange = (e) => store.set("model", e.target.value);
+
+(async () => {
+  try {
+    const d = await (await fetch("/api/models")).json();
+    const saved = store.get("model", null);
+    $("#model").innerHTML = d.models.map((m) => `<option>${m}</option>`).join("");
+    $("#model").value = d.models.includes(saved) ? saved : d.default;
+  } catch { $("#model").innerHTML = "<option>openai/gpt-oss-120b</option>"; }
+})();
+if (!active()) current = chats[0]?.id ?? null;
+render(); setBtn();
+</script>
+</body>
+</html>

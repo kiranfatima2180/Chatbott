@@ -1,0 +1,8 @@
+{
+  "name": "groq-chatbot",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "ChatGPT-style chatbot powered by the Groq API, ready for Vercel",
+  "engines": { "node": ">=18" }
+}
