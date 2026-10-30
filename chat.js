@@ -1,3 +1,5 @@
+export const config = { maxDuration: 60 };
+
 // Vercel serverless function: proxies chat requests to Groq and streams the reply.
 // The API key stays on the server and is never exposed to the browser.
 export default async function handler(req, res) {
